@@ -1,26 +1,17 @@
-// 学習タイマーコンポーネント
+import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { Alert, Text, TextInput, TouchableOpacity, Vibration, View, ScrollView, Platform, AppState, AppStateStatus } from 'react-native'; 
+import { Colors, formatDuration, formatMinToHourMin, Icon, Session, styles } from './definition';
 
-import { useFocusEffect } from '@react-navigation/native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Text, TextInput, TouchableOpacity, Vibration, View } from 'react-native';
-import {
-    Colors,
-    formatDuration, formatMinToHourMin,
-    Icon,
-    Session,
-    styles
-} from './definition';
-
-// Helper function
 const getCurrentDate = (): string => {
     const now = new Date();
-    return `${now.getMonth() + 1}/${now.getDate()}`;
+    return `${now.getFullYear()}/${now.getMonth() + 1}/${now.getDate()}`; 
 };
 
-// --- Component Signatures ---
 interface StudyTimerProps {
     sessions: Session[];
     onAddSession: (session: Session) => void;
+    onDeleteSession: (id: string) => void; 
+    timerState: any; 
 }
 interface StopwatchContentProps {
     timerRunning: boolean;
@@ -35,280 +26,143 @@ interface StopwatchContentProps {
 }
 interface ManualContentProps {
     onSaveManualSession: (session: Session) => void;
-    styles: any;
-    Colors: any;
-    Icon: React.FC<any>;
 }
-
-// ★ 修正後のシグネチャ: isPausedを追加
 interface CountdownContentProps {
-    targetTime: number; // 秒
+    targetTime: number;
     setTargetTime: (seconds: number) => void;
     countdownRunning: boolean;
-    isPaused: boolean; // ★ 追加: 一時停止状態
+    isPaused: boolean; 
     timeRemaining: number;
     currentSubject: string;
     currentPages: string;
     setCurrentSubject: (text: string) => void;
     setCurrentPages: (text: string) => void;
-    startCountdown: () => void;
-    stopCountdown: () => void;
-    resetCountdown: () => void;
+    startCountdown: () => void; 
+    stopCountdown: () => void; 
+    resetCountdown: () => void; 
 }
 
-
-// ====================================================================
-// 外部コンポーネント化
-// ====================================================================
-
 const StopwatchContent: React.FC<StopwatchContentProps> = React.memo(({
-    timerRunning,
-    elapsedTime,
-    currentSubject,
-    currentPages,
-    setCurrentSubject,
-    setCurrentPages,
-    startTimer,
-    stopTimer,
-    resetTimer,
+    timerRunning, elapsedTime, currentSubject, currentPages, setCurrentSubject, setCurrentPages, startTimer, stopTimer, resetTimer,
 }) => (
-    <View style={styles.contentSection}>
+    <View style={{ marginTop: 4 }}>
         <View style={styles.flexRow}>
             <View style={{ flex: 1, marginRight: 10 }}>
-                <Text style={styles.label}>科目</Text>
-                <TextInput
-                    style={[styles.inputBase, { padding: 8 }]}
-                    value={currentSubject}
-                    onChangeText={setCurrentSubject}
-                    placeholder="例: 数学"
-                />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginBottom: 4 }}>科目</Text>
+                <TextInput style={[styles.inputBase, { padding: 10, borderRadius: 12 }]} value={currentSubject} onChangeText={setCurrentSubject} placeholder="例: 数学" placeholderTextColor="#94a3b8" />
             </View>
             <View style={{ flex: 1 }}>
-                <Text style={styles.label}>ページ数</Text>
-                <TextInput
-                    style={[styles.inputBase, { padding: 8 }]}
-                    value={currentPages}
-                    onChangeText={setCurrentPages}
-                    placeholder="0"
-                    keyboardType="numeric"
-                />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginBottom: 4 }}>ページ数</Text>
+                <TextInput style={[styles.inputBase, { padding: 10, borderRadius: 12 }]} value={currentPages} onChangeText={setCurrentPages} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" />
             </View>
         </View>
-        <View style={[
-            styles.stopwatchDisplayBox,
-            { backgroundColor: Colors.primaryLight, marginTop: 16 }
-        ]}>
-            <Text style={styles.stopwatchText}>{formatDuration(elapsedTime)}</Text>
-            <View style={styles.flexRow}>
-                <TouchableOpacity
-                    onPress={timerRunning ? stopTimer : startTimer}
-                    style={[styles.flexOne, styles.buttonPrimary, { marginRight: 12 }]}
-                >
-                    <Icon name={timerRunning ? 'Pause' : 'Play'} style={[styles.textSm, styles.textWhite, { marginRight: 8 }]} />
-                    <Text style={styles.buttonText}>{timerRunning ? '一時停止' : '開始'}</Text>
+        <View style={{ backgroundColor: Colors.primaryLight, marginTop: 16, padding: 16, borderRadius: 20, alignItems: 'center' }}>
+            <Text style={{ fontSize: 44, fontWeight: '800', color: Colors.primary, fontFamily: 'Courier', marginVertical: 12 }}>{formatDuration(elapsedTime)}</Text>
+            <View style={[styles.flexRow, { width: '100%', justifyContent: 'space-between' }]}>
+                <TouchableOpacity onPress={timerRunning ? stopTimer : startTimer} style={[styles.buttonPrimary, { flex: 1, marginRight: 12, height: 48, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, alignSelf: 'stretch' }]}>
+                    <Icon name={timerRunning ? 'Pause' : 'Play'} style={{ fontSize: 13, color: '#fff', marginRight: 4 }} />
+                    <Text style={[styles.buttonText, { fontSize: 13, letterSpacing: -0.3 }]} numberOfLines={1}>
+                        {timerRunning ? '一時停止' : '開始'}
+                    </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                    onPress={resetTimer}
-                    style={[styles.flexOne, styles.timerButtonDanger]}
-                >
-                    <Icon name="Square" style={[styles.textSm, styles.textWhite, { marginRight: 8 }]} />
-                    <Text style={styles.buttonText}>終了/記録</Text>
+                <TouchableOpacity onPress={resetTimer} style={[styles.timerButtonDanger, { flex: 1, height: 48, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, alignSelf: 'stretch' }]}>
+                    <Icon name="Square" style={{ fontSize: 13, color: '#fff', marginRight: 4 }} />
+                    <Text style={[styles.buttonText, { fontSize: 13, letterSpacing: -0.3 }]} numberOfLines={1}>
+                        終了/記録
+                    </Text>
                 </TouchableOpacity>
             </View>
         </View>
     </View>
 ));
 
-const ManualContent: React.FC<ManualContentProps> = React.memo(({ onSaveManualSession, styles, Colors, Icon }) => {
+const ManualContent: React.FC<ManualContentProps> = React.memo(({ onSaveManualSession }) => {
     const [manualSubject, setManualSubject] = useState<string>('');
-    const [manualStartTime, setManualStartTime] = useState<string>('');
-    const [manualEndTime, setManualEndTime] = useState<string>('');
+    const [manualStartTime, setManualStartTime] = useState<string>('09:00'); 
+    const [manualEndTime, setManualEndTime] = useState<string>('10:30'); 
     const [manualPages, setManualPages] = useState<string>('');
 
     const handleSave = () => {
-        const startParts = manualStartTime.split(':').map(Number);
-        const endParts = manualEndTime.split(':').map(Number);
-
-        if (manualSubject && startParts.length === 2 && endParts.length === 2) {
-            const startDate = new Date();
-            startDate.setHours(startParts[0], startParts[1], 0, 0);
-            const endDate = new Date();
-            endDate.setHours(endParts[0], endParts[1], 0, 0);
-
-            const durationMs = endDate.getTime() - startDate.getTime();
-            const durationMin = Math.floor(durationMs / (1000 * 60));
-            const pagesNum = parseInt(manualPages || '0', 10);
-
-            if (durationMin > 0) {
-                const newSession: Session = {
-                    id: Date.now().toString(),
-                    subject: manualSubject || 'その他',
-                    durationMin: durationMin,
-                    secondsRemainder: 0, // 手動入力では常に0
-                    pages: pagesNum,
-                    date: getCurrentDate(),
-                };
-
-                onSaveManualSession(newSession);
-                
-                // フォームをクリア
-                setManualSubject('');
-                setManualStartTime('');
-                setManualEndTime('');
-                setManualPages('');
-            } else {
-                Alert.alert('エラー', '有効な開始・終了時刻を入力してください。');
-            }
-        } else {
-            Alert.alert('エラー', '科目の入力と開始・終了時刻を「HH:MM」形式で入力してください。');
+        const pagesValue = parseInt(manualPages || '0', 10);
+        if (pagesValue < 0) {
+            alert('ページ数にマイナスの値は入力できません。');
+            return;
+        }
+        if (manualSubject) {
+            const [startH, startM] = manualStartTime.split(':').map(Number);
+            const [endH, endM] = manualEndTime.split(':').map(Number);
+            const startDate = new Date(); startDate.setHours(startH, startM, 0, 0);
+            const endDate = new Date(); endDate.setHours(endH, endM, 0, 0);
+            let durationMin = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60));
+            if (durationMin <= 0) { durationMin += 24 * 60; } 
+            onSaveManualSession({ id: Date.now().toString(), subject: manualSubject || 'other', durationMin, secondsRemainder: 0, pages: pagesValue, date: getCurrentDate() });
+            setManualSubject(''); setManualPages('');
+        } else { 
+            alert('科目を入力してください。');
         }
     };
 
     return (
-        <View style={styles.contentSection}>
-            <Text style={styles.label}>科目</Text>
-            <TextInput
-                style={[styles.inputBase, { marginBottom: 12, padding: 8 }]}
-                value={manualSubject}
-                onChangeText={setManualSubject}
-                placeholder="例: 数学"
-            />
-
+        <View style={{ marginTop: 4 }}>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginBottom: 4 }}>科目</Text>
+            <TextInput style={[styles.inputBase, { marginBottom: 12, padding: 10, borderRadius: 12 }]} value={manualSubject} onChangeText={setManualSubject} placeholder="例: 数学" placeholderTextColor="#94a3b8" />
             <View style={styles.flexRow}>
-                <View style={{ flex: 1, marginRight: 10 }}>
-                    <Text style={styles.label}>開始時刻</Text>
-                    <TextInput
-                        style={[styles.inputBase, { padding: 8 }]}
-                        value={manualStartTime}
-                        onChangeText={setManualStartTime}
-                        placeholder="09:00"
-                        keyboardType="numbers-and-punctuation"
-                    />
+                <View style={{ flex: 1, marginRight: 6 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginBottom: 4 }}>開始時刻</Text>
+                    <View style={{ width: '100%', height: 40, borderRadius: 12, borderStyle: 'solid', borderWidth: 1, borderColor: '#e4e4e7', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
+                        <input type="time" value={manualStartTime} onChange={(e) => setManualStartTime(e.target.value)} style={{ width: '100%', height: '100%', padding: '0 10px', border: 'none', backgroundColor: 'transparent', color: '#18181b', fontFamily: 'inherit', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+                    </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>終了時刻</Text>
-                    <TextInput
-                        style={[styles.inputBase, { padding: 8 }]}
-                        value={manualEndTime}
-                        onChangeText={setManualEndTime}
-                        placeholder="10:30"
-                        keyboardType="numbers-and-punctuation"
-                    />
+                <View style={{ flex: 1, marginLeft: 6 }}>
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginBottom: 4 }}>終了時刻</Text>
+                    <View style={{ width: '100%', height: 40, borderRadius: 12, borderStyle: 'solid', borderWidth: 1, borderColor: '#e4e4e7', backgroundColor: '#f4f4f5', overflow: 'hidden' }}>
+                        <input type="time" value={manualEndTime} onChange={(e) => setManualEndTime(e.target.value)} style={{ width: '100%', height: '100%', padding: '0 10px', border: 'none', backgroundColor: 'transparent', color: '#18181b', fontFamily: 'inherit', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+                    </View>
                 </View>
             </View>
-
-            <Text style={[styles.label, { marginTop: 12 }]}>ページ数</Text>
-            <TextInput
-                style={[styles.inputBase, { marginBottom: 16, padding: 8 }]}
-                value={manualPages}
-                onChangeText={setManualPages}
-                placeholder="0"
-                keyboardType="numeric"
-            />
-
-            <TouchableOpacity
-                onPress={handleSave}
-                style={styles.buttonPrimary}
-            >
-                <Text style={styles.buttonText}>記録を保存</Text>
-            </TouchableOpacity>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginTop: 12, marginBottom: 4 }}>ページ数</Text>
+            <TextInput style={[styles.inputBase, { marginBottom: 16, padding: 10, borderRadius: 12 }]} value={manualPages} onChangeText={setManualPages} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" />
+            <TouchableOpacity onPress={handleSave} style={styles.buttonPrimary}><Text style={styles.buttonText}>記録を保存</Text></TouchableOpacity>
         </View>
     );
 });
 
-
 const CountdownContent: React.FC<CountdownContentProps> = React.memo(({
-    targetTime,
-    setTargetTime,
-    countdownRunning,
-    isPaused, 
-    timeRemaining,
-    currentSubject,
-    currentPages,
-    setCurrentSubject,
-    setCurrentPages,
-    startCountdown,
-    stopCountdown,
-    resetCountdown,
+    targetTime, setTargetTime, countdownRunning, isPaused, timeRemaining, currentSubject, currentPages, setCurrentSubject, setCurrentPages, startCountdown, stopCountdown, resetCountdown,
 }) => {
     const [minutesInput, setMinutesInput] = useState<string>(String(Math.floor(targetTime / 60)));
-
-    useEffect(() => {
-        setMinutesInput(String(Math.floor(targetTime / 60)));
-    }, [targetTime]);
-
-    const handleMinutesChange = (text: string) => {
-        setMinutesInput(text);
-        const minutes = parseInt(text || '0', 10);
-        setTargetTime(minutes * 60); 
-    };
-    
-    const timerColor = timeRemaining <= 10 && timeRemaining > 0 ? Colors.destructive : Colors.primary;
+    useEffect(() => { setMinutesInput(String(Math.floor(targetTime / 60))); }, [targetTime]);
 
     return (
-        <View style={styles.contentSection}>
-            {/* タイマー設定 */}
-            <View style={[styles.flexRow, { justifyContent: 'space-between', marginBottom: 12 }]}>
+        <View style={{ marginTop: 4 }}>
+            <View style={[styles.flexRow, { marginBottom: 12 }]}>
                 <View style={{ flex: 1, marginRight: 10 }}>
-                    <Text style={styles.label}>設定時間 (分)</Text>
-                    <TextInput
-                        style={[styles.inputBase, { padding: 8 }]}
-                        value={minutesInput}
-                        onChangeText={handleMinutesChange}
-                        placeholder="例: 25"
-                        keyboardType="numeric"
-                        editable={!countdownRunning && !isPaused} // ★ 修正: 実行中または一時停止中は編集不可
-                    />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginBottom: 4 }}>設定時間 (分)</Text>
+                    <TextInput style={[styles.inputBase, { padding: 10, borderRadius: 12 }]} value={minutesInput} onChangeText={(t) => { setMinutesInput(t); setTargetTime(parseInt(t || '0', 10) * 60); }} placeholder="25" placeholderTextColor="#94a3b8" keyboardType="numeric" editable={!countdownRunning && !isPaused} />
                 </View>
                 <View style={{ flex: 1 }}>
-                    <Text style={styles.label}>科目</Text>
-                    <TextInput
-                        style={[styles.inputBase, { padding: 8 }]}
-                        value={currentSubject}
-                        onChangeText={setCurrentSubject}
-                        placeholder="例: 数学"
-                    />
+                    <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginBottom: 4 }}>科目</Text>
+                    <TextInput style={[styles.inputBase, { padding: 10, borderRadius: 12 }]} value={currentSubject} onChangeText={setCurrentSubject} placeholder="例: 数学" placeholderTextColor="#94a3b8" />
                 </View>
             </View>
             <View>
-                <Text style={styles.label}>ページ数</Text>
-                <TextInput
-                    style={[styles.inputBase, { padding: 8, marginBottom: 16 }]}
-                    value={currentPages}
-                    onChangeText={setCurrentPages}
-                    placeholder="0"
-                    keyboardType="numeric"
-                />
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#4b5563', marginBottom: 4 }}>ページ数</Text>
+                <TextInput style={[styles.inputBase, { padding: 10, borderRadius: 12, marginBottom: 16 }]} value={currentPages} onChangeText={setCurrentPages} placeholder="0" placeholderTextColor="#94a3b8" keyboardType="numeric" />
             </View>
-
-            {/* カウントダウン表示 */}
-            <View style={[
-                styles.stopwatchDisplayBox, 
-                { backgroundColor: Colors.primaryLight } 
-            ]}>
-                <Text style={[styles.stopwatchText, { color: timerColor }]}>{formatDuration(timeRemaining)}</Text>
-                <View style={styles.flexRow}>
-                    {/* ★ 修正: 一時停止/再開ボタンのロジック */}
-                    <TouchableOpacity
-                        onPress={countdownRunning ? stopCountdown : startCountdown}
-                        disabled={targetTime === 0 && !isPaused} // Paused状態ならtargetTime=0でも再開可能
-                        style={[styles.flexOne, styles.buttonPrimary, { marginRight: 12, opacity: (targetTime === 0 && !isPaused) ? 0.5 : 1 }]}
-                    >
-                        <Icon 
-                            name={countdownRunning ? 'Pause' : 'Play'} 
-                            style={[styles.textSm, styles.textWhite, { marginRight: 8 }]} 
-                        />
-                        <Text style={styles.buttonText}>
+            <View style={{ backgroundColor: Colors.primaryLight, padding: 16, borderRadius: 20, alignItems: 'center' }}>
+                <Text style={{ fontSize: 44, fontWeight: '800', color: timeRemaining <= 10 && timeRemaining > 0 ? Colors.destructive : Colors.primary, fontFamily: 'Courier', marginVertical: 12 }}>{formatDuration(timeRemaining)}</Text>
+                <View style={[styles.flexRow, { width: '100%', justifyContent: 'space-between' }]}>
+                    <TouchableOpacity onPress={countdownRunning ? stopCountdown : startCountdown} disabled={targetTime === 0 && !isPaused} style={[styles.buttonPrimary, { flex: 1, marginRight: 12, height: 48, borderRadius: 12, opacity: (targetTime === 0 && !isPaused) ? 0.5 : 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, alignSelf: 'stretch' }]}>
+                        <Icon name={countdownRunning ? 'Pause' : 'Play'} style={{ fontSize: 13, color: '#fff', marginRight: 4 }} />
+                        <Text style={[styles.buttonText, { fontSize: 13, letterSpacing: -0.3 }]} numberOfLines={1}>
                             {countdownRunning ? '一時停止' : isPaused ? '再開' : '開始'}
                         </Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={resetCountdown}
-                        disabled={!countdownRunning && !isPaused} // ★ 修正: 実行中または一時停止中の時のみリセット可能
-                        style={[styles.flexOne, styles.timerButtonDanger, { opacity: (!countdownRunning && !isPaused) ? 0.5 : 1 }]}
-                    >
-                        <Icon name="Square" style={[styles.textSm, styles.textWhite, { marginRight: 8 }]} />
-                        <Text style={styles.buttonText}>終了</Text> 
+                    <TouchableOpacity onPress={resetCountdown} disabled={!countdownRunning && !isPaused} style={[styles.timerButtonDanger, { flex: 1, height: 48, borderRadius: 12, opacity: (!countdownRunning && !isPaused) ? 0.5 : 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 2, alignSelf: 'stretch' }]}>
+                        <Icon name="Square" style={{ fontSize: 13, color: '#fff', marginRight: 4 }} />
+                        <Text style={[styles.buttonText, { fontSize: 13, letterSpacing: -0.3 }]} numberOfLines={1}>
+                            終了/記録
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </View>
@@ -316,364 +170,174 @@ const CountdownContent: React.FC<CountdownContentProps> = React.memo(({
     );
 });
 
-
-// ====================================================================
-// メインコンポーネント (StudyTimer)
-// ====================================================================
-
-const StudyTimer: React.FC<StudyTimerProps> = ({ sessions, onAddSession }) => {
+const StudyTimer: React.FC<StudyTimerProps> = ({ sessions, onAddSession, onDeleteSession, timerState }) => {
+    const { swRunning, setSwRunning, elapsedTime, setElapsedTime, countdownRunning, setCountdownRunning, isPaused, setIsPaused, targetTime, setTargetTime, timeRemaining, setTimeRemaining } = timerState;
     const [currentTab, setCurrentTab] = useState<'stopwatch' | 'timer' | 'manual'>('stopwatch');
-    
-    // ストップウォッチ関連
-    const [swRunning, setSwRunning] = useState<boolean>(false);
-    const [elapsedTime, setElapsedTime] = useState<number>(0);
-
-    // カウントダウンタイマー関連
-    const [countdownRunning, setCountdownRunning] = useState<boolean>(false);
-    const [isPaused, setIsPaused] = useState<boolean>(false); // ★ 修正: 一時停止状態を追加
-    const [targetTime, setTargetTime] = useState<number>(1500); 
-    const [timeRemaining, setTimeRemaining] = useState<number>(1500); 
-
-    const timerIntervalRef = useRef<NodeJS.Timeout | number | null>(null);
-
     const [currentSubject, setCurrentSubject] = useState<string>('数学');
     const [currentPages, setCurrentPages] = useState<string>('10');
+    const backgroundTimeRef = useRef<number | null>(null);
 
-
-    // 共通のタイマー停止ロジック
-    const stopAllTimers = useCallback(() => {
-        if (timerIntervalRef.current) {
-            clearInterval(timerIntervalRef.current as NodeJS.Timeout);
-            timerIntervalRef.current = null;
-        }
-        setSwRunning(false);
-        setCountdownRunning(false);
-    }, []);
-    
-    // ------------------------------------
-    // 💾 セッション保存ロジック (★ 修正: 秒単位の記録に対応)
-    // ------------------------------------
     const saveSession = useCallback((durationSeconds: number, pages: string, subject: string) => {
         if (durationSeconds > 0) {
-            // ★ 修正: 秒数を分と残り秒数に正確に分解
-            const durationMin = Math.floor(durationSeconds / 60);
-            const secondsRemainder = durationSeconds % 60; 
-            
-            const pagesNum = parseInt(pages || '0', 10);
-
-            const newSession: Session = {
-                id: Date.now().toString(),
-                subject: subject || 'その他',
-                durationMin: durationMin,
-                secondsRemainder: secondsRemainder, // ★ 秒数を保持
-                pages: pagesNum,
-                date: getCurrentDate(),
-            };
-
-            onAddSession(newSession);
+            onAddSession({ id: Date.now().toString(), subject: subject || 'other', durationMin: Math.floor(durationSeconds / 60), secondsRemainder: durationSeconds % 60, pages: parseInt(pages || '0', 10), date: getCurrentDate() });
         }
     }, [onAddSession]);
 
+    useEffect(() => {
+        const handleAppStateChange = (nextAppState: AppStateStatus) => {
+            if (nextAppState === 'background') {
+                backgroundTimeRef.current = Date.now();
+            } else if (nextAppState === 'active' && backgroundTimeRef.current !== null) {
+                const elapsedMs = Date.now() - backgroundTimeRef.current;
+                const elapsedSec = Math.floor(elapsedMs / 1000);
+                if (elapsedSec > 0) {
+                    if (swRunning) {
+                        setElapsedTime((prev: number) => prev + elapsedSec);
+                    } else if (countdownRunning) {
+                        setTimeRemaining((prev: number) => Math.max(0, prev - elapsedSec));
+                    }
+                }
+                backgroundTimeRef.current = null;
+            }
+        };
+        const subscription = AppState.addEventListener('change', handleAppStateChange);
+        return () => subscription.remove();
+    }, [swRunning, countdownRunning, setElapsedTime, setTimeRemaining]);
 
-    // ------------------------------------
-    // 🧠 ストップウォッチ ロジック
-    // ------------------------------------
-    const startStopwatch = useCallback(() => {
-        stopAllTimers(); 
-        timerIntervalRef.current = setInterval(() => {
-            setElapsedTime(prevTime => prevTime + 1);
-        }, 1000);
-        setSwRunning(true);
-    }, [stopAllTimers]);
+    useEffect(() => {
+        if (timeRemaining === 0 && countdownRunning) {
+            setCountdownRunning(false);
+            setIsPaused(false);
+            Vibration.vibrate([0, 300, 300, 300]);
+            if (Platform.OS === 'web') {
+                if (confirm('時間です！記録を保存しますか？')) {
+                    saveSession(targetTime, currentPages, currentSubject);
+                }
+                setTimeRemaining(targetTime);
+            } else {
+                Alert.alert('時間です！', '記録を保存しますか？', [
+                    { text: 'キャンセル', style: 'cancel', onPress: () => setTimeRemaining(targetTime) },
+                    { text: '保存', onPress: () => { saveSession(targetTime, currentPages, currentSubject); setTimeRemaining(targetTime); Vibration.vibrate(500); } }
+                ]);
+            }
+        }
+    }, [timeRemaining, countdownRunning, targetTime, currentPages, currentSubject, saveSession, setCountdownRunning, setIsPaused, setTimeRemaining]);
 
-    const stopStopwatch = useCallback(() => {
-        stopAllTimers();
-    }, [stopAllTimers]);
+    const startStopwatch = useCallback(() => { setCountdownRunning(false); setSwRunning(true); }, [setSwRunning, setCountdownRunning]);
+    const stopStopwatch = useCallback(() => { setSwRunning(false); }, [setSwRunning]);
 
     const resetStopwatch = useCallback(() => {
         if (elapsedTime === 0) {
-            Alert.alert('タイマーリセット', '計測時間が0秒のため、記録は保存されませんでした。');
+            alert('計測時間が0秒のため保存されませんでした。');
             return;
         }
-        
-        const durationSeconds = elapsedTime;
-        const formattedTime = formatDuration(durationSeconds);
-
-        Alert.alert(
-            '学習を終了して記録しますか？',
-            `計測時間: ${formattedTime}\n科目: ${currentSubject}\nページ数: ${currentPages}p`,
-            [
-                {
-                    text: 'キャンセル',
-                    style: 'cancel',
-                },
-                {
-                    text: '保存して終了',
-                    onPress: () => {
-                        saveSession(durationSeconds, currentPages, currentSubject);
-                        stopStopwatch();
-                        setElapsedTime(0);
-                        Vibration.vibrate(500); 
-                    },
-                    style: 'default',
-                },
-            ]
-        );
-    }, [elapsedTime, currentPages, currentSubject, stopStopwatch, saveSession]);
+        if (confirm(`学習記録を保存しますか？\n計測時間: ${formatDuration(elapsedTime)}\n科目: ${currentSubject}`)) {
+            saveSession(elapsedTime, currentPages, currentSubject);
+            stopStopwatch();
+            setElapsedTime(0);
+        }
+    }, [elapsedTime, currentPages, currentSubject, stopStopwatch, setElapsedTime, saveSession]);
     
-    // ------------------------------------
-    // ⏳ カウントダウンタイマー ロジック
-    // ------------------------------------
-    const startCountdown = useCallback(() => {
+    const startCountdownCall = useCallback(() => {
         if (timeRemaining <= 0) {
-             Alert.alert('エラー', 'タイマー時間を設定してください。');
-             return;
+            alert('タイマー時間を設定してください。');
+            return;
         }
-        stopAllTimers(); 
-        
-        setIsPaused(false); // ★ 修正: 再開時には一時停止状態を解除
-        
-        timerIntervalRef.current = setInterval(() => {
-            setTimeRemaining(prevTime => {
-                if (prevTime <= 1) {
-                    clearInterval(timerIntervalRef.current as NodeJS.Timeout);
-                    setCountdownRunning(false);
-                    setIsPaused(false); 
-                    
-                    Vibration.vibrate([0, 300, 300, 300, 300, 300]); 
-                    
-                    const durationSeconds = targetTime;
+        setSwRunning(false); setIsPaused(false); setCountdownRunning(true);
+    }, [timeRemaining, setSwRunning, setIsPaused, setCountdownRunning]);
 
-                    Alert.alert(
-                        '時間です！',
-                        `設定した ${Math.floor(targetTime/60)}分 が経過しました。記録を保存しますか？`,
-                        [
-                            { text: 'キャンセル', style: 'cancel' },
-                            {
-                                text: '保存',
-                                onPress: () => {
-                                    saveSession(durationSeconds, currentPages, currentSubject);
-                                    setTimeRemaining(targetTime); 
-                                    Vibration.vibrate(500); 
-                                },
-                            },
-                        ]
-                    );
-                    return 0;
-                }
-                return prevTime - 1;
-            });
-        }, 1000);
-        setCountdownRunning(true);
-    }, [stopAllTimers, timeRemaining, targetTime, currentPages, currentSubject, saveSession]);
-
-    const stopCountdown = useCallback(() => {
-        if (!countdownRunning) return;
-        stopAllTimers();
-        setIsPaused(true); // ★ 修正: 一時停止状態を true にする
-    }, [stopAllTimers, countdownRunning]);
+    const stopCountdownCall = useCallback(() => { setCountdownRunning(false); setIsPaused(true); }, [setCountdownRunning, setIsPaused]);
     
-    const resetCountdown = useCallback(() => {
-        stopAllTimers();
-        setIsPaused(false); // ★ 修正: Paused状態を false にする
-        setTimeRemaining(targetTime);
-    }, [stopAllTimers, targetTime]);
+    const resetCountdownCall = useCallback(() => { 
+        setCountdownRunning(false); 
+        setIsPaused(false); 
+        const actualStudiedSeconds = targetTime - timeRemaining; 
+        if (actualStudiedSeconds > 0) { 
+            saveSession(actualStudiedSeconds, currentPages, currentSubject);
+            alert(`${currentSubject}の学習実績を保存しました。`);
+        } 
+        setTimeRemaining(targetTime); 
+    }, [targetTime, timeRemaining, currentPages, currentSubject, saveSession, setCountdownRunning, setIsPaused, setTimeRemaining]); 
     
-    useEffect(() => {
-        if (!countdownRunning && !isPaused) { // ★ 修正: 実行中でも一時停止中でもない場合のみリセット
-             setTimeRemaining(targetTime);
-        }
-    }, [targetTime, countdownRunning, isPaused]);
+    useEffect(() => { if (!countdownRunning && !isPaused) setTimeRemaining(targetTime); }, [targetTime, countdownRunning, isPaused, setTimeRemaining]);
     
-    // 手動入力用の保存関数
     const handleSaveManualSession = useCallback((session: Session) => {
         onAddSession(session);
-        const formattedTime = formatMinToHourMin(session.durationMin, session.secondsRemainder); 
-        Alert.alert('記録保存', `学習記録を保存しました。\n科目: ${session.subject}, 時間: ${formattedTime}`);
-        Vibration.vibrate(500); 
+        alert('保存完了: 学習記録を保存しました。');
     }, [onAddSession]);
 
-    // 画面フォーカス時にタイマーを再開/停止
-    useFocusEffect(
-        useCallback(() => {
-            return () => stopAllTimers(); 
-        }, [stopAllTimers])
-    );
+    const handleDeletePress = useCallback((session: Session) => { 
+        if (confirm(`${session.date}の「${session.subject}」の記録を削除しますか？`)) {
+            onDeleteSession(session.id);
+        }
+    }, [onDeleteSession]);
 
-    // TimeCardの集計値をsessionsから計算
     const todaySessions = sessions.filter(s => s.date === getCurrentDate());
     const todayDuration = todaySessions.reduce((sum, s) => sum + s.durationMin + Math.floor(s.secondsRemainder / 60), 0);
     const todayPages = todaySessions.reduce((sum, s) => sum + s.pages, 0);
-    const recentSessions = sessions.slice(0, 7);
-    const recentDuration = recentSessions.reduce((sum, s) => sum + s.durationMin, 0);
-    const recentSessionsCount = recentSessions.length;
+    const recentDuration = sessions.slice(0, 7).reduce((sum, s) => sum + s.durationMin, 0);
 
-    // ... (TimeCard Component, RecentSessionsCard Component のロジックは省略 - timer.tsxのままでOK) ...
-    // --- TimeCard Component ---
-    interface TimeCardProps {
-        title: string;
-        duration: string;
-        detail: string;
-        isPrimary: boolean;
-    }
-    const TimeCard: React.FC<TimeCardProps> = ({ title, duration, detail, isPrimary }) => {
-        const isSeconds = duration.endsWith('s');
-        let displayH = '0';
-        let displayM = '0';
-        let unit = 'm';
-
-        if (isSeconds) {
-            displayM = duration.replace('s', '');
-            unit = 's';
-        } else {
-            const parts = duration.split('h ');
-            if (parts.length > 1) { 
-                displayH = parts[0];
-                displayM = parts[1].replace('m', '');
-            } else { 
-                displayM = duration.replace('m', '');
-            }
-        }
-
+    const TimeCard: React.FC<{ title: string; duration: string; detail: string; isPrimary: boolean }> = ({ title, duration, detail, isPrimary }) => {
+        const parts = duration.split('h ');
+        const displayH = parts.length > 1 ? parts[0] : '0';
+        const displayM = parts.length > 1 ? parts[1].replace('m', '') : duration.replace('m', '').replace('s', '');
         return (
-            <View style={[
-                styles.card,
-                {
-                    flex: 1, padding: 16,
-                    borderWidth: isPrimary ? 2 : 1,
-                    borderColor: isPrimary ? Colors.primaryBorder : Colors.border
-                }
-            ]}>
-                <View style={[styles.flexRow, { marginBottom: 8 }]}>
-                    <Icon name={isPrimary ? 'Clock' : 'Calendar'} style={{ fontSize: 16, marginRight: 4, color: Colors.mutedForeground }} />
-                    <Text style={[styles.textSm, styles.textMutedForeground]}>{title}</Text>
-                </View>
-                <Text style={[styles.text2xl, styles.textBold]}>{displayH}</Text>
-                <Text style={[styles.textMd, styles.textMutedForeground, { marginTop: 4 }]}>{displayM}{unit}</Text>
-                <Text style={[styles.textSm, styles.textMutedForeground, { marginTop: 4 }]}>{detail}</Text>
+            <View style={[styles.card, { flex: 1, padding: 14, borderWidth: isPrimary ? 2 : 1, borderColor: isPrimary ? Colors.primary : Colors.border, alignItems: 'center' }]}>
+                <Text style={{ fontSize: 11, color: '#71717a', marginBottom: 4 }}>{title}</Text>
+                <Text style={{ fontSize: 20, fontWeight: '800', color: isPrimary ? Colors.primary : '#18181b' }}>{displayH === '0' ? displayM : `${displayH}h ${displayM}`}</Text>
+                <Text style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>{detail}</Text>
             </View>
         );
     };
 
-    // --- RecentSessionsCard Component ---
-    const RecentSessionsCard: React.FC = () => (
-        <View style={[styles.card, { padding: 16, marginBottom: 16 }]}>
-            <View style={{ paddingBottom: 12 }}>
-                <Text style={[styles.textLg, styles.textSemiBold]}>最近の学習記録</Text>
+    return (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingVertical: 10 }}> 
+            <View style={styles.flexRow}>
+                <TimeCard title="本日の学習" duration={formatMinToHourMin(todayDuration, 0)} detail={`${todayPages}ページ`} isPrimary={true} />
+                <View style={{ width: 8 }} />
+                <TimeCard title="最近7日間" duration={formatMinToHourMin(recentDuration, 0)} detail={`${sessions.slice(0,7).length}セッション`} isPrimary={false} />
             </View>
-            <View>
-                {sessions.slice(0, 5).map((session: Session) => (
-                    <View key={session.id} style={[styles.flexRow, {
-                        justifyContent: 'space-between', padding: 12,
-                        backgroundColor: Colors.mutedTranslucent,
-                        borderRadius: 12, borderWidth: 1, borderColor: Colors.border, marginBottom: 8
-                    }]}>
-                        <View style={styles.flexOne}>
+            <View style={[styles.card, { padding: 16, marginVertical: 16 }]}>
+                <Text style={styles.textLg}>学習時間記録</Text>
+                <Text style={{ fontSize: 11, color: '#71717a', marginBottom: 12 }}>ストップウォッチ/カウントダウン</Text>
+                <View style={[styles.flexRow, { backgroundColor: '#f4f4f5', borderRadius: 14, padding: 4, marginBottom: 16 }]}>
+                    {(['stopwatch', 'timer', 'manual'] as const).map(tab => (
+                        <TouchableOpacity key={tab} onPress={() => setCurrentTab(tab)} style={[{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: currentTab === tab ? Colors.card : 'transparent' }, currentTab === tab && { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1 }]}>
+                            <Text style={{ fontSize: 11, fontWeight: '700', color: currentTab === tab ? Colors.primary : '#71717a' }}>{tab === 'stopwatch' ? 'ストップウォッチ' : tab === 'timer' ? 'タイマー' : '手動入力'}</Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+                {currentTab === 'stopwatch' ? (
+                    <StopwatchContent timerRunning={swRunning} elapsedTime={elapsedTime} currentSubject={currentSubject} currentPages={currentPages} setCurrentSubject={setCurrentSubject} setCurrentPages={setCurrentPages} startTimer={startStopwatch} stopTimer={stopStopwatch} resetTimer={resetStopwatch} />
+                ) : currentTab === 'timer' ? (
+                    <CountdownContent targetTime={targetTime} setTargetTime={setTargetTime} countdownRunning={countdownRunning} isPaused={isPaused} timeRemaining={timeRemaining} currentSubject={currentSubject} currentPages={currentPages} setCurrentSubject={setCurrentSubject} setCurrentPages={setCurrentPages} startCountdown={startCountdownCall} stopCountdown={stopCountdownCall} resetCountdown={resetCountdownCall} />
+                ) : (
+                    <ManualContent onSaveManualSession={handleSaveManualSession} /> 
+                )}
+            </View>
+            <View style={[styles.card, { padding: 16, marginBottom: 16 }]}>
+                <Text style={styles.textLg}>最近の学習記録</Text>
+                <View style={{ marginTop: 12 }}>
+                    {[...sessions].sort((a, b) => b.id.localeCompare(a.id)).map((session: Session) => (
+                        <View key={session.id} style={[styles.flexRow, { justifyContent: 'space-between', padding: 12, backgroundColor: '#f9fafb', borderRadius: 14, borderWidth: 1, borderColor: Colors.border, marginBottom: 8 }]}>
                             <View style={styles.flexRow}>
-                                <Text style={styles.tagBase}>{session.subject}</Text>
-                                <Text style={[styles.textMutedForeground, styles.textSm]}>{session.date}</Text>
+                                <Text style={{ fontSize: 10, fontWeight: 'bold', backgroundColor: Colors.primaryLight, color: Colors.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginRight: 8 }}>{session.subject}</Text>
+                                <Text style={{ fontSize: 11, color: '#71717a' }}>{session.date.substring(5)}</Text>
+                            </View>
+                            <View style={styles.flexRow}>
+                                <View style={{ alignItems: 'flex-end', marginRight: 12 }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#18181b' }}>{formatMinToHourMin(session.durationMin, session.secondsRemainder)}</Text>
+                                    <Text style={{ fontSize: 10, color: '#9ca3af' }}>{session.pages}p</Text>
+                                </View>
+                                <TouchableOpacity onPress={() => handleDeletePress(session)} style={{ padding: 4 }}>
+                                    <Text style={{ fontSize: 14 }}>🗑️</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={[styles.textMd, styles.textSemiBold]}>{formatMinToHourMin(session.durationMin, session.secondsRemainder)}</Text>
-                            <Text style={[styles.textMutedForeground, styles.textSm]}>{session.pages}p</Text>
-                        </View>
-                    </View>
-                ))}
-                {sessions.length === 0 && (
-                    <Text style={[styles.textMutedForeground, { textAlign: 'center', marginTop: 10 }]}>まだ学習記録がありません。</Text>
-                )}
-            </View>
-        </View>
-    );
-    // ... (省略) ...
-
-
-    return (
-        <View style={{ flex: 1, paddingVertical: 10 }}>
-            <View style={styles.flexRow}>
-                <TimeCard
-                    title="本日の学習"
-                    duration={formatMinToHourMin(todayDuration, 0)}
-                    detail={`${todayPages}ページ`}
-                    isPrimary={true}
-                />
-                <View style={{ width: 10 }} />
-                <TimeCard
-                    title="最近"
-                    duration={formatMinToHourMin(recentDuration, 0)}
-                    detail={`${recentSessionsCount}セッション`}
-                    isPrimary={false}
-                />
-            </View>
-
-            <View style={[styles.card, { padding: 16, marginVertical: 16 }]}>
-                <View style={{ paddingBottom: 12 }}>
-                    <Text style={[styles.textLg, styles.textSemiBold]}>学習時間記録</Text>
-                    <Text style={[styles.textMd, styles.textMutedForeground, { marginTop: 2 }]}>ストップウォッチ/カウントダウン</Text>
+                    ))}
                 </View>
-
-                {/* タブナビゲーション */}
-                <View style={[styles.flexRow, { backgroundColor: Colors.muted, borderRadius: 8, padding: 4, marginBottom: 16 }]}>
-                    <TouchableOpacity
-                        onPress={() => setCurrentTab('stopwatch')}
-                        style={[styles.flexOne, { padding: 8, borderRadius: 8, backgroundColor: currentTab === 'stopwatch' ? Colors.card : Colors.muted, elevation: currentTab === 'stopwatch' ? 2 : 0, alignItems: 'center', justifyContent: 'center' }]}
-                    >
-                        <Text style={styles.textSemiBold}>ストップウォッチ</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => setCurrentTab('timer')}
-                        style={[styles.flexOne, { padding: 8, borderRadius: 8, backgroundColor: currentTab === 'timer' ? Colors.card : Colors.muted, elevation: currentTab === 'timer' ? 2 : 0, alignItems: 'center', justifyContent: 'center' }]}
-                    >
-                        <Text style={styles.textSemiBold}>タイマー</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => setCurrentTab('manual')}
-                        style={[styles.flexOne, { padding: 8, borderRadius: 8, backgroundColor: currentTab === 'manual' ? Colors.card : Colors.muted, elevation: currentTab === 'manual' ? 2 : 0, alignItems: 'center', justifyContent: 'center' }]}
-                    >
-                        <Text style={styles.textSemiBold}>手動入力</Text>
-                    </TouchableOpacity>
-                </View>
-
-                {currentTab === 'stopwatch' ? (
-                    <StopwatchContent
-                        timerRunning={swRunning}
-                        elapsedTime={elapsedTime}
-                        currentSubject={currentSubject}
-                        currentPages={currentPages}
-                        setCurrentSubject={setCurrentSubject}
-                        setCurrentPages={setCurrentPages}
-                        startTimer={startStopwatch}
-                        stopTimer={stopStopwatch}
-                        resetTimer={resetStopwatch}
-                    />
-                ) : currentTab === 'timer' ? (
-                    <CountdownContent
-                        targetTime={targetTime}
-                        setTargetTime={setTargetTime}
-                        countdownRunning={countdownRunning}
-                        isPaused={isPaused} 
-                        timeRemaining={timeRemaining}
-                        currentSubject={currentSubject}
-                        currentPages={currentPages}
-                        setCurrentSubject={setCurrentSubject}
-                        setCurrentPages={setCurrentPages}
-                        startCountdown={startCountdown}
-                        stopCountdown={stopCountdown}
-                        resetCountdown={resetCountdown}
-                    />
-                ) : (
-                    <ManualContent
-                        onSaveManualSession={handleSaveManualSession}
-                        styles={styles}
-                        Colors={Colors}
-                        Icon={Icon}
-                    />
-                )}
             </View>
-
-            <RecentSessionsCard />
-        </View>
+        </ScrollView>
     );
 };
 

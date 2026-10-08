@@ -1,16 +1,8 @@
-// 学習メモ機能コンポーネント (画像インポート機能とUI修正済み)
-
-import React, { useState } from 'react';
-import { Alert, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import {
-    Colors, Icon,
-    Memo,
-    mockMemos,
-    styles
-} from './definition';
-
-// ※ 実際の開発では、以下のライブラリをインストールし、スタブを置き換える必要があります。
-// import * as ImagePicker from 'expo-image-picker'; 
+import React, { useState, useEffect } from 'react';
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { collection, addDoc, query, where, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { Colors, Icon, Memo, styles } from './definition';
+import { db, auth } from './firebase';
 
 const getCurrentDate = (): string => {
     const now = new Date();
@@ -21,165 +13,134 @@ const getCurrentDate = (): string => {
 };
 
 const StudyMemo: React.FC = () => {
-    const [memos, setMemos] = useState<Memo[]>(mockMemos);
-    const [newMemoContent, setNewMemoContent] = useState<string>(''); // ★ 修正
+    const [memos, setMemos] = useState<Memo[]>([]);
+    const [newMemoContent, setNewMemoContent] = useState<string>('');
     const [newMemoSubject, setNewMemoSubject] = useState<string>('');
     const [newMemoTags, setNewMemoTags] = useState<string>('');
-    const [selectedImageUri, setSelectedImageUri] = useState<string | null>(null);
+    const userEmail = auth.currentUser?.email || '';
 
-    const handleSaveMemo = () => {
-        if (!newMemoContent.trim() && !selectedImageUri) { // ★ 修正
-            Alert.alert('エラー', 'メモ内容または画像を入力してください。');
+    useEffect(() => {
+        if (!userEmail) return;
+        const q = query(
+            collection(db, 'memos'),
+            where('userId', '==', userEmail)
+        );
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetchedMemos = snapshot.docs.map(doc => {
+                const data = doc.data();
+                return {
+                    id: doc.id,
+                    subject: data.subject || 'その他',
+                    content: data.content || '',
+                    date: data.date || '',
+                    tags: data.tags || [],
+                    imageUri: null,
+                    createdAt: data.createdAt ? data.createdAt.toDate() : new Date(),
+                };
+            });
+            fetchedMemos.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+            setMemos(fetchedMemos);
+        }, (error) => {
+            console.log('メモ同期エラー:', error);
+        });
+        return () => unsubscribe();
+    }, [userEmail]);
+
+    const handleSaveMemo = async () => {
+        if (!userEmail) {
+            Alert.alert('エラー', 'ログインセッションが有効ではありません。');
             return;
         }
-
-        const newMemo: Memo = {
-            id: Date.now().toString(),
-            subject: newMemoSubject.trim() || 'その他',
-            content: newMemoContent.trim(), // ★ 修正
-            date: getCurrentDate(),
-            tags: newMemoTags.split(',').map(tag => tag.trim()).filter(tag => tag),
-            imageUri: selectedImageUri,
-        };
-
-        setMemos([newMemo, ...memos]);
-
-        setNewMemoContent(''); // ★ 修正
-        setNewMemoSubject('');
-        setNewMemoTags('');
-        setSelectedImageUri(null);
-        Alert.alert('保存完了', '新しいメモを保存しました！');
+        if (!newMemoContent.trim()) {
+            Alert.alert('エラー', 'メモ内容を入力してください。');
+            return;
+        }
+        try {
+            await addDoc(collection(db, 'memos'), {
+                userId: userEmail,
+                subject: newMemoSubject.trim() || 'その他',
+                content: newMemoContent.trim(),
+                date: getCurrentDate(),
+                tags: newMemoTags.trim() ? newMemoTags.split(',').map(t => t.trim()).filter(t => t) : [],
+                createdAt: serverTimestamp()
+            });
+            setNewMemoContent('');
+            setNewMemoSubject('');
+            setNewMemoTags('');
+            Alert.alert('成功', 'メモを保存しました！');
+        } catch (error) {
+            console.log('メモ保存エラー:', error);
+            Alert.alert('エラー', 'データの保存に失敗しました。');
+        }
     };
-
-    // ★ 画像ピッカーのロジック (スタブ)
-    const pickImage = async (useCamera: boolean) => {
-        Alert.alert(useCamera ? 'カメラ起動' : 'ライブラリ起動', '画像選択をシミュレーションします。');
-        setSelectedImageUri('https://via.placeholder.com/300x150?text=Image+Attached');
-    };
-
-
-    interface MemoItemProps {
-        memo: Memo;
-    }
-    const MemoItem: React.FC<MemoItemProps> = ({ memo }) => (
-        <View style={[styles.card, { padding: 16, marginBottom: 12 }]}>
-            <View style={[styles.flexRow, { justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }]}>
-                <View style={styles.flexRow}>
-                    <Text style={styles.tagBase}>
-                        {memo.subject}
-                    </Text>
-                    <Text style={styles.textMutedForeground}>
-                        {memo.date}
-                    </Text>
-                </View>
-            </View>
-            {/* ★ 修正: content に修正 */}
-            <Text style={{ fontSize: 14, lineHeight: 22 }}>{memo.content}</Text> 
-            {memo.tags.length > 0 && (
-                <View style={[styles.flexRow, { flexWrap: 'wrap', marginTop: 8 }]}>
-                    {memo.tags.map((tag, index) => (
-                        <Text key={index} style={{ fontSize: 10, backgroundColor: Colors.muted, color: Colors.mutedForeground, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginRight: 6, marginBottom: 4 }}>
-                            #{tag}
-                        </Text>
-                    ))}
-                </View>
-            )}
-        </View>
-    );
 
     return (
-        <View style={{ flex: 1, paddingVertical: 10 }}>
-            {/* メモ入力セクション */}
-            <View style={[styles.card, { padding: 16, marginBottom: 16 }]}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+            <View style={[styles.card, { padding: 16, marginBottom: 16, marginTop: 8 }]}>
                 <View style={{ paddingBottom: 12 }}>
-                    <View style={styles.flexRow}>
-                        <Icon name="NotebookText" style={{ fontSize: 20, color: Colors.primary, marginRight: 8 }} />
-                        <Text style={styles.textLg}>新規メモ作成</Text>
-                    </View>
-                    <Text style={[styles.textMd, styles.textMutedForeground, { marginTop: 2 }]}>学習中の気づきや要点を記録</Text>
+                    <Text style={styles.textLg}>学習メモ作成</Text>
+                    <Text style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>大事な公式や解法、暗記項目をストック</Text>
                 </View>
+                <View>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#4b5563', marginBottom: 6 }}>科目名</Text>
+                    <TextInput style={[styles.inputBase, { marginBottom: 12, borderRadius: 12, padding: 10 }]} value={newMemoSubject} onChangeText={setNewMemoSubject} placeholder="例: 数学Ⅱ, 英語構文" placeholderTextColor="#a1a1aa" />
 
-                <View style={{ marginVertical: 10 }}>
-                    {/* ★ 画像インポートボタン */}
-                    <View style={[styles.flexRow, { justifyContent: 'space-between', marginBottom: 16 }]}>
-                        <TouchableOpacity
-                            onPress={() => pickImage(false)}
-                            style={[styles.flexOne, styles.buttonSecondary, { backgroundColor: Colors.card, height: 40, justifyContent: 'center', alignItems: 'center', marginRight: 8 }]}
-                        >
-                            <Icon name="Download" style={[styles.textSm, styles.textPrimary, { marginRight: 6 }]} />
-                            <Text style={[styles.textMd, styles.textPrimary]}>ライブラリ</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            onPress={() => pickImage(true)}
-                            style={[styles.flexOne, styles.buttonSecondary, { backgroundColor: Colors.card, height: 40, justifyContent: 'center', alignItems: 'center' }]}
-                        >
-                            <Icon name="Camera" style={[styles.textSm, styles.textPrimary, { marginRight: 6 }]} />
-                            <Text style={[styles.textMd, styles.textPrimary]}>撮影</Text>
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#4b5563', marginBottom: 6 }}>メモ内容</Text>
+                    <TextInput style={[styles.inputBase, { height: 100, marginBottom: 12, borderRadius: 12, padding: 10, textAlignVertical: 'top' }]} value={newMemoContent} onChangeText={setNewMemoContent} placeholder="公式や間違えたポイントをここに記入..." placeholderTextColor="#a1a1aa" multiline={true} />
 
-                    {/* ★ 選択された画像のプレビュー */}
-                    {selectedImageUri && (
-                        <View style={{ marginBottom: 12, alignItems: 'center', padding: 10, backgroundColor: Colors.card, borderRadius: 8, borderWidth: 1, borderColor: Colors.border }}>
-                            <Image
-                                source={{ uri: selectedImageUri }}
-                                style={{ width: '100%', height: 150, borderRadius: 8 }}
-                                resizeMode="cover"
-                            />
-                            <Text style={[styles.textMutedForeground, styles.textSm, { marginTop: 8 }]}>画像が添付されました</Text>
-                        </View>
-                    )}
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#4b5563', marginBottom: 6 }}>タグ (カンマ区切り)</Text>
+                    <TextInput style={[styles.inputBase, { marginBottom: 16, borderRadius: 12, padding: 10 }]} value={newMemoTags} onChangeText={setNewMemoTags} placeholder="例: 公式, 注意点" placeholderTextColor="#a1a1aa" />
 
-                    <Text style={styles.label}>科目</Text>
-                    <TextInput
-                        style={[styles.inputBase, { marginBottom: 12 }]}
-                        value={newMemoSubject}
-                        onChangeText={setNewMemoSubject}
-                        placeholder="例: 数学"
-                    />
-
-                    <Text style={styles.label}>メモ内容</Text>
-                    <TextInput
-                        style={[styles.inputBase, { height: 100, marginBottom: 12, textAlignVertical: 'top' }]}
-                        multiline={true}
-                        value={newMemoContent} // ★ 修正
-                        onChangeText={setNewMemoContent} // ★ 修正
-                        placeholder="重要な公式、問題の解法、暗記すべき事項などを入力..."
-                    />
-
-                    <Text style={styles.label}>タグ (カンマ区切り)</Text>
-                    <TextInput
-                        style={[styles.inputBase, { marginBottom: 16 }]}
-                        value={newMemoTags}
-                        onChangeText={setNewMemoTags}
-                        placeholder="例: #公式, #注意点"
-                    />
-
-                    <TouchableOpacity
-                        onPress={handleSaveMemo}
-                        style={styles.buttonPrimary}
-                    >
-                        <Icon name="Upload" style={[styles.textSm, styles.textWhite, { marginRight: 8 }]} />
+                    <TouchableOpacity onPress={handleSaveMemo} style={styles.buttonPrimary}>
+                        <Icon name="Upload" style={{ fontSize: 14, color: '#fff', marginRight: 8 }} />
                         <Text style={styles.buttonText}>メモを保存</Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            {/* メモ履歴セクション */}
             <View style={[styles.card, { padding: 16, marginBottom: 16 }]}>
                 <View style={{ paddingBottom: 12 }}>
                     <Text style={styles.textLg}>メモ履歴</Text>
-                    <Text style={[styles.textMd, styles.textMutedForeground, { marginTop: 2 }]}>過去に作成した学習メモ</Text>
+                    <Text style={{ fontSize: 11, color: '#71717a', marginTop: 2 }}>過去に作成した学習メモ</Text>
                 </View>
                 <View>
                     {memos.map((memo: Memo) => (
                         <MemoItem key={memo.id} memo={memo} />
                     ))}
                     {memos.length === 0 && (
-                        <Text style={[styles.textMutedForeground, { textAlign: 'center', marginTop: 10 }]}>まだメモがありません。</Text>
+                        <Text style={{ color: '#71717a', textAlign: 'center', marginTop: 10, fontSize: 13 }}>保存されたメモはありません。</Text>
                     )}
                 </View>
             </View>
+        </ScrollView>
+    );
+};
+
+interface MemoItemProps {
+    memo: Memo;
+}
+
+const MemoItem: React.FC<MemoItemProps> = ({ memo }) => {
+    return (
+        <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f4f4f5' }}>
+            <View style={[styles.flexRow, { justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }]}>
+                <View style={[styles.flexRow, { alignItems: 'center' }]}>
+                    <View style={{ backgroundColor: '#eff6ff', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, marginRight: 8 }}>
+                        <Text style={{ fontSize: 11, color: Colors.primary, fontWeight: '600' }}>{memo.subject}</Text>
+                    </View>
+                    <Text style={{ fontSize: 11, color: '#71717a' }}>{memo.date}</Text>
+                </View>
+            </View>
+            <Text style={{ fontSize: 14, color: '#18181b', lineHeight: 20, marginBottom: 6 }}>{memo.content}</Text>
+            {memo.tags && memo.tags.length > 0 && (
+                <View style={[styles.flexRow, { flexWrap: 'wrap', gap: 4 }]}>
+                    {memo.tags.map((tag, idx) => (
+                        <Text key={idx} style={{ fontSize: 11, color: '#4b5563', backgroundColor: '#f4f4f5', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                            #{tag}
+                        </Text>
+                    ))}
+                </View>
+            )}
         </View>
     );
 };

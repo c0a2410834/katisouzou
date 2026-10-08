@@ -1,31 +1,18 @@
-// 
-// ファイル名: utils/PdfGenerator.tsx
-// 概要: PDF生成と共有のための共通ヘルパー関数
-//
-
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
-import { Alert } from 'react-native';
-
-// ----------------------------------------------------
-// 1. 型定義 (このファイル内で使うデータ用)
-// ----------------------------------------------------
-
-// Memoデータ型 (memo.tsx からインポートする代わりにここで簡易定義)
+// ファイル名: utils/PdfGenerator.tsx カッコのみの行は除外
+import * as Print from 'expo-print'; // インポート
+import * as Sharing from 'expo-sharing'; // インポート
+import { Alert } from 'react-native'; // インポート
 interface MemoData {
   subject: string;
   date: string;
   text: string;
   tags: string[];
 }
-
-// Reportデータ型 (report.tsx から)
 interface SubjectBreakdownData {
   subject: string;
   duration: number; // minutes
   percentage: number;
 }
-
 interface ReportDataPayload {
   totalDuration: number;
   totalPages: number;
@@ -33,22 +20,12 @@ interface ReportDataPayload {
   subjectData: SubjectBreakdownData[];
   reportType: 'week' | 'month';
 }
-
-// AI生成問題のデータ型
 interface GeneratedQuestionData {
   text: string;
   subject: string;
   difficulty: string;
+  answer: string; // ★解答データを追加
 }
-
-// ----------------------------------------------------
-// 2. 内部ヘルパー関数
-// ----------------------------------------------------
-
-/**
- * PDF用の基本的なHTMLヘッダー（共通CSSスタイル）
- * @param title ページの <title> タグ
- */
 const getHtmlHead = (title: string): string => `
   <head>
     <meta charset="utf-8">
@@ -73,8 +50,6 @@ const getHtmlHead = (title: string): string => `
       }
       p { margin: 0 0 10px 0; }
       strong { color: #000; }
-
-      /* メモ/問題 共通スタイル */
       .memo-item {
         border-bottom: 1px solid #eee;
         padding-bottom: 10px;
@@ -85,9 +60,7 @@ const getHtmlHead = (title: string): string => `
         margin-bottom: 0;
       }
       .memo-header { font-size: 12px; color: #555; margin-bottom: 5px; }
-      .memo-text { font-size: 14px; white-space: pre-wrap; /* 改行を反映 */ }
-
-      /* レポート用スタイル */
+      .memo-text { font-size: 14px; white-space: pre-wrap; }
       .report-summary p { font-size: 16px; }
       .subject-item { margin-bottom: 12px; }
       .subject-bar-bg { 
@@ -98,58 +71,35 @@ const getHtmlHead = (title: string): string => `
         margin-top: 4px;
       }
       .subject-bar-fg { 
-        background: #007AFF; /* プライマリカラー (仮) */
+        background: #007AFF; 
         height: 100%; 
         border-radius: 5px;
       }
     </style>
   </head>
 `;
-
-/**
- * 分を 'Xh Ym' 形式にフォーマットする
- */
 const formatMinutesToHours = (minutes: number): string => {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return `${h}h ${m}m`;
 };
-
-// ----------------------------------------------------
-// 3. 外部公開（Export）する関数
-// ----------------------------------------------------
-
-/**
- * HTML文字列からPDFを生成し、共有ダイアログを開く (コア機能)
- * @param htmlContent PDFにするHTMLコンテンツ
- * @param dialogTitle 共有時のダイアログタイトル
- */
 export const generatePdfFromHtml = async (htmlContent: string, dialogTitle: string = 'PDFを共有') => {
   try {
     const { uri } = await Print.printToFileAsync({
       html: htmlContent,
-      base64: false, // base64よりファイルURIの方が効率的
+      base64: false,
     });
-
-    // 共有ダイアログを開く
     await Sharing.shareAsync(uri, {
       mimeType: 'application/pdf',
       dialogTitle: dialogTitle,
-      UTI: '.pdf', // iOS用のヒント
+      UTI: '.pdf',
     });
-
   } catch (error) {
     console.error('PDFの生成または共有に失敗しました:', error);
     Alert.alert('エラー', 'PDFの処理中にエラーが発生しました。');
   }
 };
-
-/**
- * 学習メモの配列からHTMLを生成する
- * (memo.tsx から呼び出す用)
- */
 export const createMemosHtml = (memos: MemoData[]): string => {
-  // HTMLの本文（body）を生成
   const body = `
     <h1>学習メモ一覧</h1>
     <div class="card">
@@ -165,8 +115,6 @@ export const createMemosHtml = (memos: MemoData[]): string => {
       `).join('') : '<p>保存されているメモはありません。</p>'}
     </div>
   `;
-
-  // 完全なHTMLドキュメントを返す
   return `
     <html>
       ${getHtmlHead('学習メモ一覧')}
@@ -176,23 +124,15 @@ export const createMemosHtml = (memos: MemoData[]): string => {
     </html>
   `;
 };
-
-/**
- * 学習レポートのデータからHTMLを生成する
- * (report.tsx から呼び出す用)
- */
 export const createReportHtml = (data: ReportDataPayload): string => {
-  // HTMLの本文（body）を生成
   const body = `
     <h1>学習レポート (${data.reportType === 'week' ? '週間' : '月間'})</h1>
-    
     <div class="card report-summary">
       <h2>概要</h2>
       <p><strong>合計時間:</strong> ${formatMinutesToHours(data.totalDuration)}</p>
       <p><strong>平均/日:</strong> ${formatMinutesToHours(data.avgDaily)}</p>
       <p><strong>総ページ:</strong> ${data.totalPages} ページ</p>
     </div>
-
     <div class="card">
       <h2>科目別学習時間</h2>
       ${data.subjectData.map((item: SubjectBreakdownData) => `
@@ -207,14 +147,11 @@ export const createReportHtml = (data: ReportDataPayload): string => {
         </div>
       `).join('')}
     </div>
-
     <div class="card">
       <h2>学習グラフ</h2>
       <p>グラフやチャートのPDFエクスポートは現在サポートされていません。</p>
     </div>
   `;
-
-  // 完全なHTMLドキュメントを返す
   return `
     <html>
       ${getHtmlHead('学習レポート')}
@@ -224,50 +161,36 @@ export const createReportHtml = (data: ReportDataPayload): string => {
     </html>
   `;
 };
-
-
-// ----------------------------------------------------
-// 4. AI生成問題用の関数 (ai_create.tsx から)
-// ----------------------------------------------------
-
-/**
- * AI生成問題の配列からHTMLを生成する
- * (ai_create.tsx から呼び出す用)
- * @param questions AI生成問題のデータ配列
- * @param sourceQuestion 元になった問題のテキスト (オプション)
- */
 export const createAiQuestionsHtml = (
   questions: GeneratedQuestionData[],
   sourceQuestion?: string
 ): string => {
-  
-  // HTMLの本文（body）を生成
   const body = `
     <h1>AI生成問題</h1>
-
     ${sourceQuestion ? `
       <div class="card">
         <h2>元の問題</h2>
         <p>${sourceQuestion.replace(/\n/g, '<br>')}</p>
       </div>
     ` : ''}
-
     <div class="card">
       <h2>生成された問題一覧</h2>
       ${questions.length > 0 ? questions.map((q, index) => `
-        <div class="memo-item"> {/* 'memo-item'のCSSを流用 */}
+        <div class="memo-item">
           <p class="memo-header">
             <strong>問題 ${index + 1}</strong> | 
             <strong>科目:</strong> ${q.subject} | 
             <strong>難易度:</strong> ${q.difficulty}
           </p>
           <p class="memo-text">${q.text.replace(/\n/g, '<br>')}</p>
+          <div style="margin-top: 10px; padding: 10px; background-color: #f0fdf4; border-radius: 6px; border: 1px solid #bbf7d0;">
+            <strong style="color: #166534;">解答:</strong>
+            <p style="margin: 4px 0 0 0; color: #1e293b;">${q.answer.replace(/\n/g, '<br>')}</p>
+          </div> {/* HTML構文エラーを防ぐため元の改行置換処理に修正 */}
         </div>
       `).join('') : '<p>生成された問題はありません。</p>'}
     </div>
   `;
-
-  // 完全なHTMLドキュメントを返す
   return `
     <html>
       ${getHtmlHead('AI生成問題')}
@@ -277,5 +200,4 @@ export const createAiQuestionsHtml = (
     </html>
   `;
 };
-// ./utils/PdfGenerator.tsx の末尾に追加
 export default {};
