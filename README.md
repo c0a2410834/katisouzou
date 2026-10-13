@@ -172,3 +172,6 @@ Web上に変更を反映させ、本番URLを発行する際の手順です。
 
 3. **スマートフォンのブラウザで反映確認を行う**  
    発行された `Production:` のURLにスマホのブラウザ（iOS Safari / Android Chrome）からアクセスし、動作確認を行います。
+
+## 📊 発表資料
+* 📄 [AICADEMY 発表スライド (PDF)](./docs/AICADEMY_presentation.pdf)
