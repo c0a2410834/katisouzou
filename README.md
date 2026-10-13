@@ -1,4 +1,6 @@
-# AICADEMY（G-STUDY BASE）
+# AICADEMY
+
+<img width="180" height="180" alt="image" src="https://github.com/user-attachments/assets/e96c0eb1-63c7-4ee6-a73b-047767c5a400" />
 
 > **生成AI（Gemini 2.5 Flash + Serper RAG）によるサポート × リアルタイム自習室予約＆コミュニティ管理 Webプラットフォーム**
 
@@ -170,3 +172,6 @@ Web上に変更を反映させ、本番URLを発行する際の手順です。
 
 3. **スマートフォンのブラウザで反映確認を行う**  
    発行された `Production:` のURLにスマホのブラウザ（iOS Safari / Android Chrome）からアクセスし、動作確認を行います。
+
+## 📊 発表資料
+* 📄 [AICADEMY 発表スライド (PDF)](./docs/AICADEMY_presentation.pdf)
