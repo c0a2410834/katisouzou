@@ -1,4 +1,6 @@
-# AICADEMY（G-STUDY BASE）
+# AICADEMY
+
+<img width="180" height="180" alt="image" src="https://github.com/user-attachments/assets/e96c0eb1-63c7-4ee6-a73b-047767c5a400" />
 
 > **生成AI（Gemini 2.5 Flash + Serper RAG）によるサポート × リアルタイム自習室予約＆コミュニティ管理 Webプラットフォーム**
 
